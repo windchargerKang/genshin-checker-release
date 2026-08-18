@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>原神体检助手 · uid 一键查询 + AI 优化建议</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#0e1524; --bg2:#16203a; --card:#1b2742; --card2:#223155;
+    --line:#2f3f63; --text:#e8edf7; --muted:#93a2c4; --accent:#ffd166;
+    --acc2:#7fd1ff; --green:#4ade80; --red:#f87171; --amber:#fbbf24;
+    --gold:#f5c86b; --purple:#c084fc;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1200px 500px at 20% -10%, #1c2c52 0%, transparent 60%),
+      radial-gradient(900px 400px at 100% 0%, #2a1f4a 0%, transparent 60%),
+      var(--bg);
+    color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    min-height:100vh; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px;margin:0 auto;padding:16px 14px 40px}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 2px 14px}
+  header.top h1{font-size:19px;margin:0;display:flex;align-items:center;gap:8px;font-weight:800;letter-spacing:.5px}
+  header.top h1 .ico{filter:drop-shadow(0 0 8px rgba(255,209,102,.7))}
+  .btn-gear{background:var(--card);border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:8px 11px;font-size:15px;cursor:pointer}
+  .btn-gear:active{transform:scale(.96)}
+
+  /* ---- 查询区 ---- */
+  .search{display:flex;gap:8px;margin-bottom:14px}
+  .search input{
+    flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;color:var(--text);
+    padding:13px 14px;font-size:16px;outline:none;min-width:0;
+  }
+  .search input:focus{border-color:var(--acc2)}
+  .btn-query{
+    background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#1a1205;border:none;border-radius:12px;
+    padding:0 22px;font-size:16px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 4px 16px rgba(251,191,36,.35);
+  }
+  .btn-query:active{transform:scale(.97)}
+  .btn-query:disabled{opacity:.55;cursor:not-allowed}
+  .err{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.4);color:#fca5a5;padding:12px 14px;border-radius:12px;margin:6px 0 12px;font-size:14px;display:none}
+  .hist{display:none;align-items:center;gap:8px;flex-wrap:wrap;margin:0 2px 12px;font-size:13px}
+  .hist-label{color:var(--muted);font-size:12px;white-space:nowrap}
+  .hist-items{display:flex;gap:8px;flex-wrap:wrap}
+  .hist-chip{background:var(--card2);border:1px solid var(--line);color:var(--acc2);padding:5px 12px;border-radius:20px;cursor:pointer;font-size:13px;font-variant-numeric:tabular-nums}
+  .hist-chip:active{transform:scale(.96)}
+  .hist-clear{background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;text-decoration:underline;margin-left:auto}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+  .card-title{font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+  .card-title::before{content:"";width:4px;height:13px;border-radius:2px;background:var(--accent)}
+
+  /* ---- 账号总览 ---- */
+  .ov-top{display:flex;align-items:center;gap:14px}
+  .ov-avatar{width:64px;height:64px;border-radius:50%;border:2px solid var(--accent);object-fit:cover;background:var(--card2)}
+  .ov-info{flex:1}
+  .ov-uid{font-size:13px;color:var(--muted)}
+  .ov-name{font-size:20px;font-weight:800;margin:2px 0}
+  .ov-meta{font-size:13px;color:var(--acc2)}
+  .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+  .stat-box{background:var(--card2);border-radius:12px;padding:12px;text-align:center}
+  .stat-box .v{font-size:20px;font-weight:800;color:var(--accent)}
+  .stat-box .k{font-size:11px;color:var(--muted);margin-top:3px}
+  .roles{display:flex;gap:12px;overflow-x:auto;padding:6px 2px 10px;scroll-snap-type:x mandatory}
+  .roles::-webkit-scrollbar{height:6px}
+  .roles::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+  .role-card{
+    min-width:102px;flex:0 0 102px;scroll-snap-align:start;background:var(--card2);border:1px solid var(--line);
+    border-radius:14px;padding:12px 8px;text-align:center;cursor:pointer;transition:.15s;
+  }
+  .role-card:active{transform:scale(.96)}
+  .role-card img{width:58px;height:58px;border-radius:50%;object-fit:cover;background:#0d1430;margin-bottom:6px}
+  .role-card .rn{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .role-card .rl{font-size:11px;color:var(--muted);margin-top:2px}
+  .role-card .tag{display:inline-block;margin-top:5px;font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(192,132,252,.2);color:var(--purple)}
+
+  /* ---- 加载 / 空态 ---- */
+  .loading{display:none;text-align:center;color:var(--muted);padding:30px 0;font-size:14px}
+  .spinner{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--accent);border-radius:50%;margin:0 auto 12px;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .empty-note{color:var(--muted);font-size:14px;text-align:center;padding:24px 0}
+
+  /* ---- 角色详情页 ---- */
+  #roleView{display:none}
+  .back{background:none;border:none;color:var(--acc2);font-size:14px;cursor:pointer;padding:4px 0;margin-bottom:8px;display:inline-flex;align-items:center;gap:4px}
+  .profile{display:flex;gap:16px;align-items:center}
+  .profile img.pimg{width:88px;height:88px;border-radius:20px;border:2px solid var(--line)}
+  .profile .pinfo{flex:1;min-width:0}
+  .profile .pname{font-size:22px;font-weight:800}
+  .profile .ptags{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+  .profile .ptags span{font-size:11px;padding:3px 9px;border-radius:20px;background:var(--card2);color:var(--muted);border:1px solid var(--line)}
+  .profile .ptags .rlevel{color:var(--gold);border-color:var(--gold)}
+
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+  .kpi .kb{background:var(--card2);border-radius:10px;padding:9px 6px;text-align:center;border:1px solid transparent}
+  .kpi .kb .v{font-size:15px;font-weight:700}
+  .kpi .kb .k{font-size:10px;color:var(--muted);margin-top:2px}
+  .bad{color:var(--red)} .good{color:var(--green)} .warn{color:var(--amber)}
+
+  .attr-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .attr{display:flex;justify-content:space-between;align-items:center;background:var(--card2);padding:9px 12px;border-radius:10px;font-size:13px}
+  .attr .ak{color:var(--muted)}
+  .attr .av{font-weight:600}
+  .sub2{color:var(--muted)} .big2{color:var(--accent);font-weight:800;font-size:14px}
+
+  #chartBox{width:100%;height:240px;margin-top:6px}
+
+  /* ---- 圣遗物明细 ---- */
+  .arti-item{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+  .arti-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+  .arti-name{font-weight:700;font-size:14px}
+  .arti-type{font-size:11px;color:var(--muted);border:1px solid var(--line);padding:2px 8px;border-radius:20px}
+  .arti-lv{font-size:12px;color:var(--acc2)}
+  .arti-main{display:flex;justify-content:space-between;font-size:13px;margin-top:9px;padding:7px 10px;background:rgba(255,209,102,.08);border-radius:8px}
+  .arti-main .mk{color:var(--gold)}
+  .arti-main .mv{font-weight:700;color:var(--gold)}
+  .arti-subs{margin-top:7px;display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:12px;color:var(--muted)}
+  .arti-subs span{padding:4px 8px;background:rgba(255,255,255,.03);border-radius:6px}
+
+  /* ---- 预判提示 ---- */
+  .hints{display:flex;flex-direction:column;gap:8px}
+  .hint{display:flex;gap:10px;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.5}
+  .hint .ico{flex:0 0 18px;text-align:center}
+  .hint.danger{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.35)}
+  .hint.warn{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3)}
+  .hint.info{background:rgba(127,209,255,.1);border:1px solid rgba(127,209,255,.3)}
+  .hint.good{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.35)}
+
+  /* ---- AI 建议 ---- */
+  .ai-bar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+  .ai-bar .hint-msg{font-size:12px;color:var(--muted)}
+  .btn-ai{
+    background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:10px;
+    padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;
+  }
+  .btn-ai:disabled{opacity:.5;cursor:not-allowed}
+  #aiOut{display:none}
+  #aiText{font-size:14px;line-height:1.75;white-space:pre-wrap;color:var(--text)}
+  #aiText b{color:var(--accent)}
+  #aiText .sec{display:block;font-weight:800;margin:14px 0 4px;color:var(--acc2);font-size:15px;border-bottom:1px dashed var(--line);padding-bottom:4px}
+  .ai-load{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:13px;padding:8px 0}
+  .ai-load .spinner{width:20px;height:20px;border-width:3px;margin:0}
+
+  /* ---- 设置弹窗 ---- */
+  .overlay{position:fixed;inset:0;background:rgba(8,12,24,.75);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+  .modal{background:var(--card);border:1px solid var(--line);border-radius:18px;width:100%;max-width:420px;padding:20px}
+  .modal h3{margin:0 0 4px;font-size:18px}
+  .modal .sub{color:var(--muted);font-size:12px;margin-bottom:16px;line-height:1.6}
+  .field{margin-bottom:13px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .field input,.field select{
+    width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);
+    border-radius:10px;padding:11px 12px;font-size:14px;outline:none;
+  }
+  .field input:focus{border-color:var(--acc2)}
+  .modal-btns{display:flex;gap:10px;margin-top:18px}
+  .modal-btns button{flex:1;padding:11px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;border:none}
+  .btn-save{background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#1a1205}
+  .btn-cancel{background:var(--card2);color:var(--muted);border:1px solid var(--line)!important}
+  .keyinfo{font-size:12px;color:var(--muted);margin-top:12px;background:rgba(255,255,255,.03);padding:9px 11px;border-radius:8px;line-height:1.6}
+
+  .footer{text-align:center;color:#5a6a8f;font-size:11px;margin-top:26px;line-height:1.7}
+  a{color:var(--acc2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1><span class="ico">🗡️</span>原神体检助手</h1>
+    <button class="btn-gear" onclick="openSettings()">⚙️ 设置</button>
+  </header>
+
+  <div class="search">
+    <input id="uidInput" type="text" inputmode="numeric" placeholder="输入 UID，如 123456789">
+    <button class="btn-query" id="queryBtn" onclick="queryAccount()">一键查询</button>
+  </div>
+  <div class="hist" id="histBox"><span class="hist-label">最近查询</span><span class="hist-items" id="histItems"></span></div>
+  <div class="err" id="errBox"></div>
+
+  <!-- 加载 -->
+  <div class="loading" id="loading"><div class="spinner"></div>正在查询账号信息…</div>
+
+  <!-- 账号总览 -->
+  <div id="overview" style="display:none">
+    <div class="card">
+      <div class="card-title">账号总览</div>
+      <div class="ov-top">
+        <img class="ov-avatar" id="ovAvatar" alt="avatar">
+        <div class="ov-info">
+          <div class="ov-uid">UID <span id="ovUid"></span></div>
+          <div class="ov-name" id="ovName">旅行者</div>
+          <div class="ov-meta" id="ovMeta"></div>
+        </div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="v" id="ovAr">0</div><div class="k">冒险等级</div></div>
+        <div class="stat-box"><div class="v" id="ovCount">0</div><div class="k">角色数量</div></div>
+        <div class="stat-box"><div class="v" id="ov90">0</div><div class="k">90级角色</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">角色列表</div>
+      <div class="roles" id="roleList"></div>
+    </div>
+  </div>
+
+  <!-- 角色详情 -->
+  <div id="roleView">
+    <button class="back" onclick="showOverview()">← 返回账号总览</button>
+    <div class="card">
+      <div class="profile">
+        <img class="pimg" id="pImg" alt="角色">
+        <div class="pinfo">
+          <div class="pname" id="pName"></div>
+          <div class="ptags" id="pTags"></div>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="kb"><div class="v" id="pCrit"></div><div class="k">暴击率</div></div>
+        <div class="kb"><div class="v" id="pCritDmg"></div><div class="k">暴击伤害</div></div>
+        <div class="kb"><div class="v" id="pRecharge"></div><div class="k">元素充能</div></div>
+        <div class="kb"><div class="v" id="pElement"></div><div class="k">元素精通</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">面板属性</div>
+      <div class="attr-grid" id="attrGrid"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">关键属性对比</div>
+      <div id="chartBox"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">圣遗物明细</div>
+      <div id="artiList"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">规则诊断（快速提示）</div>
+      <div class="hints" id="hints"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">AI 优化建议</div>
+      <div class="ai-bar">
+        <button class="btn-ai" id="aiBtn" onclick="askAI()">💡 生成优化建议</button>
+        <span class="hint-msg" id="aiHint"></span>
+      </div>
+      <div class="ai-load" id="aiLoading" style="display:none"><div class="spinner"></div>AI 正在分析该角色，请稍候…</div>
+      <div id="aiOut"><div id="aiText"></div></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    数据来源：米游社 · 乐乐API <br>
+    本工具在浏览器本地运行，注重您的使用体验与隐私。
+  </div>
+</div>
+
+<!-- 设置弹窗 -->
+<div class="overlay" id="settingsOverlay">
+  <div class="modal">
+    <h3>⚙️ 设置</h3>
+    <div class="sub">本工具已内置默认优化模型，开箱即用。以下为高级配置，一般无需修改。</div>
+    <div class="field">
+      <label>服务地址</label>
+      <input id="sBase" placeholder="http://…">
+    </div>
+    <div class="field">
+      <label>模型名称</label>
+      <input id="sModel" placeholder="默认已配置">
+    </div>
+    <div class="field">
+      <label>访问密钥（可选）</label>
+      <input id="sKey" type="password" placeholder="留空即可，一般无需填写">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-save" onclick="saveSettings()">保存</button>
+      <button class="btn-cancel" onclick="closeSettings()">取消</button>
+    </div>
+    <div class="keyinfo">默认配置开箱即用，无需额外设置。如需切换服务，可在此填写自定义地址与密钥（仅保存在本机浏览器）。</div>
+  </div>
+</div>
+
+<script>
+/* ================= 常量 & 工具 ================= */
+const API = "https://api.lelaer.com/ys/getPlayerRecord.php";
+const ROLE_CLASS = {0:"主C",1:"副C",2:"辅助",3:"治疗",4:"充能/增伤副C",5:"副C",6:"辅助"};
+
+const $=id=>document.getElementById(id);
+function pf(v){ /* 解析百分比/数值为数字 */
+  if(v===undefined||v===null||v==="") return 0;
+  return parseFloat(String(v).replace("%",""))||0;
+}
+function fmt(v){ v=Math.round(pf(v)); return v; }
+function pctWithBar(v){ return String(v).replace("%","")+"%"; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* ================= 状态 ================= */
+let account=null, curRole=null, chart=null;
+const LS_KEY="ysCheck.settings.v1", LS_UID="ysCheck.lastUid", LS_HIST="ysCheck.uidHist";
+
+function loadSettings(){
+  try{ return JSON.parse(localStorage.getItem(LS_KEY))||{}; }catch(e){ return {}; }
+}
+/* 内置默认配置：仅供代码内部维护使用，不对使用者暴露 */
+const DEFAULTS={
+  base:"http://1.181.141.96:6018/kimi-k2.6/v1",
+  model:"Kimi-K2.6",
+  key:""
+};
+const SETTINGS=Object.assign({
+  base:DEFAULTS.base,
+  model:DEFAULTS.model,
+  key:DEFAULTS.key
+}, loadSettings());
+
+/* ================= 查询 ================= */
+async function queryAccount(){
+  const uid=$("uidInput").value.trim();
+  hideErr();
+  if(!/^\d{6,12}$/.test(uid)){ showErr("请输入有效的 UID（6 位以上数字）。"); return; }
+  localStorage.setItem(LS_UID,uid);
+  $("overview").style.display="none";
+  $("roleView").style.display="none";
+  $("loading").style.display="block";
+  $("queryBtn").disabled=true;
+  try{
+    const res=await fetch(API+"?uid="+encodeURIComponent(uid));
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const json=await res.json();
+    if(json.code!==200 || !json.result) throw new Error("接口返回异常");
+    account=json.result;
+    addHistory(uid);
+    renderOverview();
+  }catch(e){
+    account=null;
+    showErr("查询失败："+((e&&e.message)||"请检查网络或 UID 是否正确。"));
+  }finally{
+    $("loading").style.display="none";
+    $("queryBtn").disabled=false;
+  }
+}
+
+/* ================= 总览 ================= */
+function renderOverview(){
+  const roles=account.role_data||[];
+  $("ovUid").textContent=roles[0]?roles[0].uid:"-";
+  $("ovName").textContent=account.name||"旅行者";
+  $("ovMeta").textContent=(roles[0]?roles[0].server:"未知区服")+" · "+roles.length+" 位好友位角色";
+  $("ovAr").textContent=account.level!=null?account.level:"-";
+  $("ovCount").textContent=roles.length;
+  $("ov90").textContent=roles.filter(r=>r.level>=90).length;
+
+  const avatars=roles.filter(r=>r.role_img);
+  $("ovAvatar").src=avatars[0]?avatars[0].role_img:"";
+  $("ovAvatar").onerror=function(){this.style.visibility="hidden";};
+
+  $("roleList").innerHTML=roles.map(r=>`
+    <div class="role-card" onclick="selectRole(${roles.indexOf(r)})">
+      <img src="${esc(r.role_img)}" loading="lazy" onerror="this.style.visibility='hidden'">
+      <div class="rn">${esc(r.role)}</div>
+      <div class="rl">Lv.${r.level} · ${esc(r.weapon||"-")}</div>
+      <span class="tag">${ROLE_CLASS[r.role_class]!=null?ROLE_CLASS[r.role_class]:"-"}</span>
+    </div>`).join("");
+
+  $("overview").style.display="block";
+  window.scrollTo({top:0});
+}
+
+/* ================= 角色详情 ================= */
+function selectRole(i){
+  curRole=account.role_data[i];
+  // 必须先让 roleView 可见，再渲染（尤其 ECharts 需要真实容器尺寸）
+  $("overview").style.display="none";
+  $("roleView").style.display="block";
+  renderRole(curRole);
+  window.scrollTo({top:0});
+}
+function showOverview(){
+  $("roleView").style.display="none";
+  $("overview").style.display="block";
+}
+
+/* 元素伤害映射 */
+const ELEM_DMG=["fire_dmg","water_dmg","thunder_dmg","wind_dmg","ice_dmg","rock_dmg","grass_dmg","physical_dmg"];
+const ELEM_NAME=["火元素伤害","水元素伤害","雷元素伤害","风元素伤害","冰元素伤害","岩元素伤害","草元素伤害","物理伤害加成"];
+
+function renderRole(r){
+  $("pImg").src=r.role_img||""; $("pImg").onerror=function(){this.style.visibility='hidden';};
+  $("pName").textContent=r.role;
+  const cls=(ROLE_CLASS[r.role_class]!=null?ROLE_CLASS[r.role_class]:"");
+
+  // 天赋
+  let talent="";
+  const ab=[r.ability1,r.ability2,r.ability3];
+  if(ab.some(a=>a!=null)) talent=`天赋 ${ab.join("/")}`;
+
+  $("pTags").innerHTML=[
+    `<span class="rlevel">Lv.${r.level}</span>`,
+    `武器 ${esc(r.weapon||"-")} ${r.weapon_level||0}级·${esc(r.weapon_class||"")}`,
+    cls&&`<span>${cls}</span>`,
+    talent&&`<span>${talent}</span>`
+  ].filter(Boolean).join("");
+
+  // 关键 KPI
+  const crit=pf(r.crit), cd=pf(r.crit_dmg), rc=pf(r.recharge), elem=pf(r.element);
+  setKPI($("pCrit"), pctWithBar(r.crit||"0%"), crit<20);
+  setKPI($("pCritDmg"), pctWithBar(r.crit_dmg||"0%"), cd<80);
+  setKPI($("pRecharge"), pctWithBar(r.recharge||"0%"), rc<100 && (r.role_class==2||r.role_class==3));
+  setKPI($("pElement"), fmt(r.element), null);
+
+  renderAttrs(r);
+  renderChart(r,{crit,cd,rc,elem});
+  renderArtis(r);
+  renderHints(r);
+  $("aiOut").style.display="none";
+  $("aiLoading").style.display="none";
+  $("aiHint").textContent="默认使用内置AI，如需替换右上角自己配置";
+}
+
+function setKPI(id,text,bad){
+  id.textContent=text;
+  id.className="v"+(bad?" bad":"");
+}
+
+function renderAttrs(r){
+  const items=[
+    ["生命值", r.hp], ["攻击力", r.attack], ["防御力", r.defend],
+    ["生命上限(基础)", r.base_hp], ["基础攻击", r.base_attack], ["基础防御", r.base_defend],
+    ["元素精通", r.element], ["元素充能", pctWithBar(r.recharge||"0%")],
+    ["暴击率", pctWithBar(r.crit||"0%")], ["暴击伤害", pctWithBar(r.crit_dmg||"0%")],
+    ["治疗加成", pctWithBar(r.heal||"0%")]
+  ];
+  // 元素伤害
+  ELEM_DMG.forEach((k,i)=>{ if(pf(r[k])>0) items.push([ELEM_NAME[i], pctWithBar(r[k])]); });
+  $("attrGrid").innerHTML=items.map(([k,v])=>`
+    <div class="attr"><span class="ak">${k}</span><span class="av">${fmt(v)||0}</span></div>`).join("");
+}
+
+function renderChart(r){
+  const crit=pf(r.crit), cd=pf(r.crit_dmg), rc=pf(r.recharge), elem=pf(r.element);
+  const dmg=[];
+  ELEM_DMG.forEach((k,i)=>{ if(pf(r[k])>0) dmg.push([ELEM_NAME[i].replace("伤害加成",""), pf(r[k])]); });
+  const data=[
+    {name:"暴击率",v:crit},{name:"暴击伤害",v:cd},{name:"充能效率",v:rc},{name:"元素精通",v:elem}
+  ].concat(dmg.map(d=>({name:d[0],v:d[1]})));
+
+  if(!chart){ chart=echarts.init($("chartBox")); } else { chart.resize(); }
+  chart.setOption({
+    backgroundColor:"transparent",
+    grid:{left:8,right:60,top:6,bottom:6,containLabel:true},
+    xAxis:{type:"value",splitLine:{lineStyle:{color:"#2f3f63"}},axisLabel:{color:"#93a2c4"}},
+    yAxis:{type:"category",data:data.map(d=>d.name),axisLabel:{color:"#e8edf7",fontSize:11}},
+    series:[{
+      type:"bar",data:data.map(d=>d.v),barWidth:14,
+      itemStyle:{borderRadius:[0,7,7,0],color:new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:"#7fd1ff"},{offset:1,color:"#f5c86b"}])},
+      label:{show:true,position:"right",color:"#e8edf7",fontSize:11}
+    }]
+  });
+}
+window.addEventListener("resize",()=>{ if(chart && $("roleView").style.display==="block") chart.resize(); });
+
+function renderArtis(r){
+  const list=r.artifacts_detail||[];
+  if(!list.length){ $("artiList").innerHTML='<div class="empty-note">暂无圣遗物数据</div>'; return; }
+  const ORDER={生之花:0,死之羽:1,时之沙:2,空之杯:3,理之冠:4};
+  list.sort((a,b)=>(ORDER[a.artifacts_type]??9)-(ORDER[b.artifacts_type]??9));
+  const subs=t=>[t.tips1,t.tips2,t.tips3,t.tips4].filter(s=>s&&String(s).trim()).map(s=>`<span>${esc(s)}</span>`).join("");
+  $("artiList").innerHTML=list.map(a=>`
+    <div class="arti-item">
+      <div class="arti-head">
+        <span class="arti-name">${esc(a.artifacts_name)}</span>
+        <span>
+          <span class="arti-type">${esc(a.artifacts_type)}</span>
+          <span class="arti-lv" style="margin-left:6px">+${a.level}</span>
+        </span>
+      </div>
+      <div class="arti-main"><span class="mk">主词条 · ${esc(a.maintips)}</span><span class="mv">${esc(a.mainvalue)}</span></div>
+      <div class="arti-subs">${subs(a)||'<span>无副词条</span>'}</div>
+    </div>`).join("");
+}
+
+/* ================= 规则诊断 ================= */
+function renderHints(r){
+  const hints=[];
+  const crit=pf(r.crit), cd=pf(r.crit_dmg), rc=pf(r.recharge), elem=pf(r.element);
+  const weaponLv=r.weapon_level||0, roleLv=r.level||0;
+  const artis=r.artifacts_detail||[];
+  const avgArtiLv=artis.length?artis.reduce((s,a)=>s+(a.level||0),0)/artis.length:0;
+  const isHealer=(r.role_class==3);
+
+  if(crit>0 && crit<20) hints.push(["warn","⚠️","暴击率偏低（"+pctWithBar(r.crit)+"）","对输出角色建议把暴击率堆到 50% 以上，否则伤害不稳定。"]);
+  if(crit>=20 && crit<45 && cd>0) hints.push(["info","💡","暴击率："+pctWithBar(r.crit), cd>=100?"暴击率与爆伤比例失衡，建议提高到约 1:2。":"可以继续堆一些暴击率。"]);
+  if(cd>0 && cd<80) hints.push(["warn","⚠️","暴击伤害偏低（"+pctWithBar(r.crit_dmg)+"）","搭配充足暴击率后，爆伤越高收益越大，建议向 120% 以上努力。"]);
+  if(weaponLv+10 < roleLv && roleLv>=40) hints.push(["warn","⚠️","武器等级落后","武器等级（"+weaponLv+"）明显低于角色等级（"+roleLv+"），升满武器对输出/奶量提升巨大。"]);
+  if(avgArtiLv>0 && avgArtiLv<14) hints.push(["warn","⚠️","圣遗物等级整体偏低","平均圣遗物等级约 "+avgArtiLv.toFixed(1)+"，建议先把关键四件升满，主词条收益最明显。"]);
+  if(artis.length>0 && artis.length<5) hints.push(["info","💡","圣遗物未齐","当前仅装备 "+artis.length+" 件圣遗物，凑齐 5 件或激活套装效果会更强。"]);
+  if(isHealer && pf(r.heal)==0) hints.push(["info","💡","治疗角色","可以堆治疗加成与生命值以提升奶量。"]);
+  if(rc>0 && rc<100 && (r.role_class==2||r.role_class==3)) hints.push(["warn","⚠️","充能效率偏低（"+pctWithBar(r.recharge)+"）","辅助/治疗角色依赖大招循环，建议充能堆到 150%~200%。"]);
+  if(elem>=150) hints.push(["good","✅","元素精通充足（"+fmt(elem)+"）","对增幅/剧变反应队是个好基础。"]);
+
+  const total=crit*2+cd;
+  if(crit>0&&cd>0&&total<120) hints.push(["info","💡","双暴面板偏低","综合双暴（暴击×2+爆伤）偏低，优先通过圣遗物副词条和爆伤头/爆伤武器改善。"]);
+
+  if(!hints.length) hints.push(["good","✅","符合常规期望","暂时没有发现明显短板，可以继续强化圣遗物副词条。"]);
+
+  $("hints").innerHTML=hints.map(h=>`
+    <div class="hint ${h[0]}"><span class="ico">${h[1]}</span><span><b>${h[2]}</b> ${h[3]}</span></div>`).join("");
+}
+
+/* ================= AI 优化建议 ================= */
+function buildPrompt(r){
+  const artis=(r.artifacts_detail||[]).map(a=>({
+    name:a.artifacts_name,type:a.artifacts_type,level:a.level,
+    main:"主词条:"+(a.maintips||"")+(a.mainvalue!=null?" "+a.mainvalue:""),
+    subs:[a.tips1,a.tips2,a.tips3,a.tips4].filter(s=>s&&String(s).trim())
+  }));
+  const dmg=[];
+  ELEM_DMG.forEach((k,i)=>{ if(pf(r[k])>0) dmg.push(ELEM_NAME[i].replace("伤害加成","+")+pf(r[k])+"%"); });
+
+  return `你是《原神》资深配装与养成顾问，请针对下面这位玩家的单个角色，从【圣遗物】【武器】【天赋】【面板属性】【配队方向】五个方面给出具体、可执行的优化建议，用简洁的中文分点列出，合理使用 Markdown 标题（如 ## 圣遗物）并给出优先级。请基于数据实事求是，不要编造。
+
+角色信息：
+- 名称：${r.role}（${ROLE_CLASS[r.role_class]!=null?ROLE_CLASS[r.role_class]:""}）
+- 等级：${r.level}
+- 武器：${r.weapon}（${r.weapon_level}级，${r.weapon_class}）
+- 天赋：${[r.ability1,r.ability2,r.ability3].join("/")}
+- 套装：${r.artifacts}
+- 面板：生命${r.hp} / 攻击${r.attack} / 防御${r.defend} / 暴击率${r.crit} / 暴击伤害${r.crit_dmg} / 充能${r.recharge} / 元素精通${r.element}
+- 元素伤害加成：${dmg.join("，")||"无"}
+- 圣遗物明细：${JSON.stringify(artis)}`;
+}
+
+async function askAI(){
+  if(!curRole){ showErr("请先选择角色。"); return; }
+  const btn=$("aiBtn"); btn.disabled=true;
+  $("aiLoading").style.display="flex";
+  $("aiOut").style.display="none";
+  try{
+    // 可选鉴权：有 key 则带 Authorization 头（用于需要鉴权的第三方模型），无 key 则不附带（默认自建接口）。
+    const headers={"Content-Type":"application/json"};
+    if(SETTINGS.key) headers["Authorization"]="Bearer "+SETTINGS.key;
+    const payload={
+      model:SETTINGS.model,
+      messages:[
+        {role:"system",content:"你是《原神》专业养成顾问，回答简洁实用、分点清晰。"},
+        {role:"user",content:buildPrompt(curRole)}
+      ],
+      chat_template_kwargs:{enable_thinking:false},
+      temperature:0.6,
+      max_tokens:1200,
+      stream:false
+    };
+    const resp=await fetch((SETTINGS.base.replace(/\/$/,""))+"/chat/completions",{
+      method:"POST",
+      headers,
+      body:JSON.stringify(payload)
+    });
+    if(!resp.ok){
+      const t=await resp.text();
+      throw new Error("API "+resp.status+": "+t.slice(0,120));
+    }
+    const json=await resp.json();
+    const text=json.choices&&json.choices[0]&&json.choices[0].message&&json.choices[0].message.content;
+    if(!text) throw new Error("接口未返回内容");
+    $("aiText").innerHTML=formatAI(text);
+    $("aiOut").style.display="block";
+  }catch(e){
+    $("aiText").textContent="生成失败："+((e&&e.message)||"请检查网络与 API 地址设置。");
+    $("aiOut").style.display="block";
+  }finally{
+    btn.disabled=false;
+    $("aiLoading").style.display="none";
+  }
+}
+function formatAI(text){
+  // 极简 markdown：## → 分段标题，**加粗**
+  return esc(text)
+    .replace(/^##\s+(.+)$/gm,'<span class="sec">$1</span>')
+    .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+    .replace(/^- /gm,'• ');
+}
+
+/* ================= 错误 ================= */
+function showErr(m){ $("errBox").textContent=m; $("errBox").style.display="block"; }
+function hideErr(){ $("errBox").style.display="none"; }
+
+/* ================= 设置 ================= */
+/*
+  内置默认配置定义在文件顶部 DEFAULTS（仅供内部维护，不对使用者暴露）。
+  设置弹窗不回填默认值；仅当用户显式填写自定义值，才保存并使用。
+*/
+function openSettings(){
+  // 仅回显用户显式自定义过的值；未自定义则留空（占位提示），不暴露内置默认信息
+  const c=loadSettings();
+  $("sBase").value=c.base||"";
+  $("sModel").value=c.model||"";
+  $("sKey").value=SETTINGS.key||"";
+  $("settingsOverlay").style.display="flex";
+}
+function closeSettings(){ $("settingsOverlay").style.display="none"; }
+function saveSettings(){
+  const b=$("sBase").value.trim(), m=$("sModel").value.trim(), k=$("sKey").value.trim();
+  // 空值 = 使用内置默认（不写入 localStorage 覆盖默认；也不暴露默认值）
+  SETTINGS.base=b||DEFAULTS.base;
+  SETTINGS.model=m||DEFAULTS.model;
+  SETTINGS.key=k||"";
+  const custom={};
+  if(b) custom.base=b;
+  if(m) custom.model=m;
+  if(k) custom.key=k;
+  localStorage.setItem(LS_KEY,JSON.stringify(custom));
+  closeSettings();
+  if(curRole) $("aiHint").textContent="默认使用内置AI，如需替换右上角自己配置";
+}
+
+/* 回车查询 */
+$("uidInput").addEventListener("keydown",e=>{ if(e.key==="Enter") queryAccount(); });
+window.addEventListener("keydown",e=>{ if(e.key==="Escape") closeSettings(); });
+
+/* ================= uid 历史查询记录 ================= */
+const HIST_MAX=8;
+function getHist(){
+  try{ const a=JSON.parse(localStorage.getItem(LS_HIST)); return Array.isArray(a)?a:[]; }catch(e){ return []; }
+}
+function addHistory(uid){
+  let h=getHist().filter(x=>x!==uid);   // 去重（新 uid 放最前）
+  h.unshift(uid);
+  if(h.length>HIST_MAX) h=h.slice(0,HIST_MAX);
+  localStorage.setItem(LS_HIST,JSON.stringify(h));
+  renderHist();
+}
+function clearHist(){
+  localStorage.removeItem(LS_HIST);
+  renderHist();
+}
+function renderHist(){
+  const h=getHist();
+  const box=$("histBox");
+  if(!h.length){ box.style.display="none"; box.querySelector("#histItems").innerHTML=""; return; }
+  box.style.display="flex";
+  $("histItems").innerHTML=h.map(u=>
+    `<button class="hist-chip" onclick="useHist('${u}')">${u}</button>`).join("")+
+    `<button class="hist-clear" onclick="clearHist()">清空</button>`;
+}
+function useHist(uid){
+  $("uidInput").value=uid;
+  queryAccount();
+}
+/* 初始渲染历史记录（不自动查询） */
+renderHist();
+</script>
+</body>
+</html>
